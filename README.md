@@ -7,7 +7,7 @@ A community plugin that adds a GitHub-style activity calendar to the LearnHarnes
 Requires LearnHarness 0.6.0 or a compatible later version. The files in `dist/` are ready to run without a build or dependency installation.
 
 1. Open **Settings → Community plugins** in LearnHarness and find the plugins directory.
-2. In that directory, run `git clone https://github.com/happyer29/learnharness-learning-calendar.git learning-calendar`. Alternatively, choose **Code → Download ZIP** on GitHub, extract the archive, rename the extracted folder to `learning-calendar`, and place it in the plugins directory. The final path should end in `plugins/learning-calendar/dist/manifest.json`.
+2. Download [the installable plugin ZIP](https://github.com/happyer29/learnharness-learning-calendar/raw/refs/heads/main/downloads/learning-calendar.zip), unzip it, and move the extracted `learning-calendar` folder into that directory. Alternatively, run `git clone https://github.com/happyer29/learnharness-learning-calendar.git learning-calendar` from the plugins directory. The final path should end in `plugins/learning-calendar/dist/manifest.json`.
 3. Click **Refresh plugins**, enable **Learning calendar**, and open it from the sidebar.
 
 ## Reading the calendar
