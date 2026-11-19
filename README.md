@@ -2,6 +2,10 @@
 
 A community plugin that adds a GitHub-style activity calendar to the LearnHarness sidebar. Each square represents one day in your local time zone. Select a square to see the sessions you worked on, then select a session to reopen it.
 
+![Learning calendar with a year of daily activity and a selected day showing two sessions](docs/images/learning-calendar-example.png)
+
+*Example with sample data. October 22 shows 18 learning actions across two sessions.*
+
 ## Install
 
 Requires LearnHarness 0.6.0 or a compatible later version. The files in `dist/` are ready to run without a build or dependency installation.
