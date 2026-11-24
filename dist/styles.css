@@ -41,11 +41,12 @@
 .lh-learning-calendar .lc-year { font: inherit; font-size: .875rem; font-weight: 550; padding: .3rem .45rem; min-height: 2rem; border: 1px solid var(--lc-border); border-radius: 0.5rem; background: var(--lc-panel); color: var(--lc-ink); cursor: pointer; }
 .lh-learning-calendar .lc-status { margin: 1.25rem 0 0; font-size: .875rem; line-height: 1.6; overflow-wrap: anywhere; }
 .lh-learning-calendar .lc-status:empty { display: none; }
-.lh-learning-calendar .lc-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 1.7rem 0; padding: 1.25rem 0; border-block: 1px solid var(--lc-border); }
+.lh-learning-calendar .lc-stats { display: grid; grid-template-columns: minmax(0, 1.25fr) repeat(4, minmax(0, 1fr)); margin: 1.7rem 0; padding: 1.25rem 0; border-block: 1px solid var(--lc-border); }
 .lh-learning-calendar .lc-stat { padding-inline: clamp(.6rem, 2.8cqw, 1.8rem); border-inline-start: 1px solid var(--lc-border); }
 .lh-learning-calendar .lc-stat:first-child { padding-left: 0; border-inline-start: 0; }
 .lh-learning-calendar .lc-stat-label { color: var(--lc-muted); font-size: .875rem; }
 .lh-learning-calendar .lc-stat-value { margin: .28rem 0 0; font-size: clamp(1.35rem, 3.1cqw, 2.2rem); font-weight: 550; line-height: 1.15; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.lh-learning-calendar .lc-stat-time .lc-stat-value { overflow-wrap: anywhere; }
 .lh-learning-calendar .lc-stat-note { margin: .2rem 0 0; color: var(--lc-muted); font-size: .8125rem; }
 .lh-learning-calendar .lc-panel { --lc-cell: clamp(11px, 1.3cqw, 17px); --lc-gap: clamp(3px, .35cqw, 5px); padding: clamp(.8rem, 2.4cqw, 1.8rem); background: var(--lc-panel); border: 1px solid var(--lc-border); border-radius: .85rem; }
 .lh-learning-calendar .lc-section-title { margin: 0; font-size: clamp(1.08rem, 2.2cqw, 1.34rem); letter-spacing: -.025em; line-height: 1.35; font-weight: 610; }
@@ -93,7 +94,12 @@
   .lh-learning-calendar .lc-counts { max-width: 100%; text-align: left; }
 }
 
+@container (max-width: 800px) {
+  .lh-learning-calendar .lc-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 1.05rem; }
+  .lh-learning-calendar .lc-stat-time { grid-column: 1 / -1; }
+  .lh-learning-calendar .lc-stat:nth-child(2) { padding-left: 0; border-inline-start: 0; }
+}
 @container (max-width: 580px) {
-  .lh-learning-calendar .lc-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 1.05rem; padding-block: .95rem; }
-  .lh-learning-calendar .lc-stat:nth-child(3) { padding-left: 0; border-inline-start: 0; }
+  .lh-learning-calendar .lc-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-block: .95rem; }
+  .lh-learning-calendar .lc-stat:nth-child(4) { padding-left: 0; border-inline-start: 0; }
 }

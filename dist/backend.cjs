@@ -1,5 +1,8 @@
 "use strict";
 
+const minute = 60_000;
+const maxActiveGap = 15 * minute;
+
 const questionKinds = new Map([
   ["quiz", "quiz"], ["probe", "quiz"], ["ask_user_question", "ask"],
   ["explain", "explain"], ["recall", "explain"],
@@ -15,10 +18,8 @@ function dayFormatter(timeZone) {
   });
 }
 
-function localDay(value, formatter) {
-  if (typeof value !== "number" && typeof value !== "string") return null;
-  const instant = new Date(value);
-  if (!Number.isFinite(instant.getTime())) return null;
+function localDay(timestamp, formatter) {
+  const instant = new Date(timestamp);
   const parts = formatter.formatToParts(instant);
   const field = type => parts.find(part => part.type === type).value;
   return [field("year"), field("month"), field("day")].join("-");
@@ -55,13 +56,17 @@ function acceptedAnswer(message, call) {
 }
 
 // Use the native transcript. Its rendered form also gives some system events a user role.
-function countSession(record, formatter) {
+function countSession(record, formatter, now) {
   const daily = new Map();
+  const events = [];
   const seen = new Set();
   const calls = new Map();
   function count(at, category) {
-    const day = localDay(at, formatter);
-    if (!day) return;
+    if (typeof at !== "number" && typeof at !== "string") return;
+    const timestamp = new Date(at).getTime();
+    if (!Number.isFinite(timestamp) || timestamp > now) return;
+    const day = localDay(timestamp, formatter);
+    events.push({timestamp, day});
     if (!daily.has(day)) {
       daily.set(day, {
         id: record.id, title: record.title?.trim() || "Untitled session",
@@ -107,7 +112,36 @@ function countSession(record, formatter) {
       count(message.at, "sideMessages");
     }
   }
-  return daily;
+  return {daily, events};
+}
+
+// Credit a single timeline even when the learner alternates between sessions.
+// Real gaps cross midnight in the viewer's zone; the one-minute allowance for
+// an isolated action or the end of a burst belongs to its last recorded day.
+function estimateLearningTime(days, events, formatter) {
+  events.sort((a, b) => a.timestamp - b.timestamp);
+  for (let i = 0; i < events.length; i++) {
+    const current = events[i];
+    const next = events[i + 1];
+    const day = days.get(current.day);
+    if (!next || next.timestamp - current.timestamp > maxActiveGap) {
+      day.estimatedMs += minute;
+    } else if (current.day === next.day) {
+      day.estimatedMs += next.timestamp - current.timestamp;
+    } else {
+      // Find the actual date boundary, including time zones whose offset
+      // changes at midnight. Local days aren't always 24 hours long.
+      let lo = current.timestamp;
+      let hi = next.timestamp;
+      while (hi - lo > 1) {
+        const mid = lo + Math.floor((hi - lo) / 2);
+        if (localDay(mid, formatter) === current.day) lo = mid;
+        else hi = mid;
+      }
+      day.estimatedMs += hi - current.timestamp;
+      days.get(next.day).estimatedMs += next.timestamp - hi;
+    }
+  }
 }
 
 exports.activate = function activate(ctx) {
@@ -115,29 +149,33 @@ exports.activate = function activate(ctx) {
     const formatter = dayFormatter(input?.timeZone);
     const days = new Map();
     const visited = new Set();
+    const events = [];
+    const now = Date.now();
     let skippedSessions = 0;
     for (const summary of ctx.learning.listSessions()) {
       if (visited.has(summary.id)) continue;
       visited.add(summary.id);
-      let daily;
+      let activity;
       try {
         const record = ctx.learning.getSession(summary.id);
         if (record?.id !== summary.id || !Array.isArray(record.messages)) {
           skippedSessions++;
           continue;
         }
-        daily = countSession(record, formatter);
+        activity = countSession(record, formatter, now);
       } catch {
         skippedSessions++;
         continue;
       }
-      for (const [date, session] of daily) {
-        if (!days.has(date)) days.set(date, {date, count: 0, sessions: []});
+      for (const event of activity.events) events.push(event);
+      for (const [date, session] of activity.daily) {
+        if (!days.has(date)) days.set(date, {date, count: 0, estimatedMs: 0, sessions: []});
         const day = days.get(date);
         day.sessions.push(session);
         day.count += session.answers + session.messages + session.sideMessages;
       }
     }
+    estimateLearningTime(days, events, formatter);
     return {days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)), skippedSessions};
   });
 };

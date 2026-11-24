@@ -4,6 +4,7 @@ const months = new Intl.DateTimeFormat('en', {month: 'short', timeZone: 'UTC'});
 const fullDate = new Intl.DateTimeFormat('en', {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC'});
 const shortDate = new Intl.DateTimeFormat('en', {month: 'short', day: 'numeric', timeZone: 'UTC'});
 const dayLength = 86400000;
+const estimateMethod = 'Learning time is estimated from action timestamps across all sessions. Actions up to 15 minutes apart form a study burst. Time between them is split at local midnight, with one extra minute credited on the burst’s final day.';
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -24,6 +25,27 @@ function localToday() {
 function weekday(key) { return (dateValue(key).getUTCDay() + 6) % 7; }
 function plural(value, singular, multiple = singular + 's') {
   return value.toLocaleString('en') + ' ' + (value === 1 ? singular : multiple);
+}
+function validTime(ms) { return Number.isFinite(ms) && ms >= 0; }
+function duration(ms, compact = false) {
+  if (ms > 0 && ms < 60000) return compact ? '<1m' : 'less than 1 minute';
+  const minutes = Math.round(ms / 60000);
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const parts = [];
+  if (hours) parts.push(compact ? hours.toLocaleString('en') + 'h' : plural(hours, 'hour'));
+  if (rest || !hours) parts.push(compact ? rest + 'm' : plural(rest, 'minute'));
+  return parts.join(' ');
+}
+function totalTime(days) {
+  const timed = days.filter(day => validTime(day.estimatedMs));
+  if (days.length && !timed.length) return 'Unavailable';
+  const ms = timed.reduce((sum, day) => sum + day.estimatedMs, 0);
+  return duration(ms, true) + (days.length === timed.length ? '' : ' (partial)');
+}
+function dayTime(entry) {
+  const ms = entry ? entry.estimatedMs : 0;
+  return validTime(ms) ? duration(ms) + ' of estimated learning time' : 'Learning time estimate unavailable';
 }
 function intensity(count) { return count >= 40 ? 'four' : count >= 15 ? 'three' : count >= 5 ? 'two' : 'one'; }
 function currentStreak(records, today) {
@@ -63,6 +85,11 @@ function mountCalendar(ctx, container, signal) {
   const status = el('p', 'lc-status', 'Reading your learning history…');
   status.setAttribute('role', 'status');
   const stats = el('dl', 'lc-stats');
+  const timeStat = stat('Estimated learning time', '', '');
+  timeStat.classList.add('lc-stat-time');
+  timeStat.title = estimateMethod;
+  const timeValue = timeStat.querySelector('.lc-stat-value');
+  const timeNote = timeStat.querySelector('.lc-stat-note');
   const panel = el('section', 'lc-panel');
   const panelHeading = el('div', 'lc-panel-heading');
   panelHeading.append(el('h2', 'lc-section-title', 'Daily activity'), el('p', 'lc-muted', 'Select a day to see what you worked on.'));
@@ -92,7 +119,7 @@ function mountCalendar(ctx, container, signal) {
   detailHeading.setAttribute('aria-live', 'polite');
   const detailBody = el('div', 'lc-detail-body');
   detail.append(detailHeading, detailBody);
-  const footer = el('p', 'lc-source', 'Each action is a learner message, side-chat message, or quiz or practice submission recorded by LearnHarness.');
+  const footer = el('p', 'lc-source', 'Each action is a learner message, side-chat message, or quiz or practice submission recorded by LearnHarness. ' + estimateMethod);
   content.append(header, status, stats, panel, detail, footer);
   root.append(content);
   container.append(root);
@@ -122,9 +149,13 @@ function mountCalendar(ctx, container, signal) {
   }
   function description(date) {
     const entry = records.get(date);
-    const value = entry ? plural(entry.count, 'action') :
-      date > today ? 'Future day' : stateOf(date) === 'before' ? 'Before recorded history' : 'No recorded activity';
-    return fullDate.format(dateValue(date)) + ' · ' + value + (date === today ? ' · Today' : '');
+    const state = stateOf(date);
+    const parts = [fullDate.format(dateValue(date))];
+    if (state === 'future') parts.push('Future day');
+    else if (state === 'before') parts.push('Before recorded history');
+    else parts.push(entry ? plural(entry.count, 'action') : 'No recorded activity', dayTime(entry));
+    if (date === today) parts.push('Today');
+    return parts.join(' · ');
   }
   function datesInYear() {
     const prefix = year + '-';
@@ -160,7 +191,9 @@ function mountCalendar(ctx, container, signal) {
     const completed = first && start <= end ? Math.round((dateValue(end) - dateValue(start)) / dayLength) + 1 : 0;
     const inactive = completed - dates.filter(key => key >= start && key <= end).length;
     const historyRange = completed ? shortDate.format(dateValue(start)) + ' – ' + shortDate.format(dateValue(end)) : 'no completed days';
+    timeValue.textContent = totalTime([...records.values()]);
     stats.replaceChildren(
+      timeStat,
       stat('Active days', dates.length.toLocaleString('en'), 'in ' + year),
       stat('Days without activity', inactive.toLocaleString('en'), historyRange),
       stat('Learning actions', total.toLocaleString('en'), 'in ' + year),
@@ -170,13 +203,21 @@ function mountCalendar(ctx, container, signal) {
   function renderDetail() {
     detailHeading.textContent = fullDate.format(dateValue(selected));
     const data = records.get(selected);
+    const state = stateOf(selected);
+    const date = shortDate.format(dateValue(selected));
+    const ms = data ? data.estimatedMs : 0;
+    const selectedTime = state === 'before' ? date + ' precedes recorded history' :
+      state === 'future' ? date + ' is in the future' :
+      validTime(ms) ? duration(ms, true) + ' on ' + date : 'No estimate for ' + date;
+    timeNote.textContent = 'All time · ' + selectedTime;
     if (!data) {
       const message = selected === today ? 'No learning activity recorded today yet.' :
-        stateOf(selected) === 'before' ? 'This date is before your first recorded learning activity.' : 'No learning activity recorded on this day.';
-      detailBody.replaceChildren(el('p', 'lc-empty', !first && selected < today ? 'Your learning history is empty.' : message));
+        state === 'before' ? 'This date is before your first recorded learning activity.' : 'No learning activity recorded on this day.';
+      const text = !first && selected < today ? 'Your learning history is empty.' : message;
+      detailBody.replaceChildren(el('p', 'lc-empty', state === 'empty' ? text + ' ' + dayTime(data) + '.' : text));
       return;
     }
-    const summary = el('p', 'lc-detail-summary', plural(data.count, 'learning action') + ' across ' + plural(data.sessions.length, 'session'));
+    const summary = el('p', 'lc-detail-summary', plural(data.count, 'learning action') + ' across ' + plural(data.sessions.length, 'session') + ' · ' + dayTime(data));
     const list = el('ul', 'lc-sessions');
     for (const session of data.sessions) {
       const row = el('li', 'lc-session');
